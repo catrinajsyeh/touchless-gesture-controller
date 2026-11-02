@@ -66,3 +66,26 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# PlatformIO
+.pio/
+.vscode/
+
+# Dataset images collected from the camera
+model/dataset/**/*.png
+model/dataset/**/*.jpg
+model/dataset/**/*.jpeg
+
+# Live logs and evaluation runs
+evaluation/results/*
+!evaluation/results/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db

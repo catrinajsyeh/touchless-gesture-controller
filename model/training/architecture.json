@@ -1,0 +1,11 @@
+{
+  "input": 64,
+  "filters": [16, 32, 48],
+  "kernel": 3,
+  "stride": 2,
+  "padding": "valid",
+  "activation": "relu",
+  "pool": "quadrant_average",
+  "classes": ["POINT_UP", "POINT_DOWN", "THUMBS_UP", "OPEN_PALM", "NO_GESTURE"],
+  "normalize": "pixel / 127.5 - 1"
+}
