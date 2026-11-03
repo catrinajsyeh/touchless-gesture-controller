@@ -1,22 +1,16 @@
 # Touchless
 
-Hands-free TikTok control for ECE 209AS. A Freenove ESP32-S3-WROOM watches a hand with its OV2640 camera, classifies the pose on the board, and types one keyboard key over Bluetooth.
+Hands-free TikTok control for ECE 209AS.
 
-The laptop dashboard only displays what the board already decided. It does not run the model.
+A Freenove ESP32-S3 camera watches your hand. The board runs a landmark gesture model, decides when a pose counts, and types one Bluetooth keyboard key. TikTok scrolls, likes, or pauses when that window is focused.
 
-## What is already in this repo
+## Start here
 
-| Piece | Where | Status |
-| --- | --- | --- |
-| Dashboard | `dashboard/` | Interface built. Demo numbers are labeled sample data. |
-| Firmware | `firmware/` | Both PlatformIO environments compile. Not flashed, and not tried on the board. |
-| Trainer | `model/training/` | Runs in NumPy. A shape-sorting check reached 100% on toy drawings. That is not hand-gesture accuracy. |
-| Weights on the board | `firmware/src/gesture_recognition/model_weights.cpp` | Placeholder. Gesture keys stay off until you train on real photos and reflash. |
-| User study | `evaluation/user_study/` | Protocol and sheet. No participants have been run. |
+If you are taking over the hardware, follow:
 
-## What you need to do
+**[PARTNER_BOOTUP.md](PARTNER_BOOTUP.md)**
 
-The remaining steps, with the commands, are in [WHAT_TO_DO.md](WHAT_TO_DO.md).
+That file has the plug-in steps, the two commands to start, Bluetooth pairing, and TikTok testing.
 
 ## Gestures
 
@@ -26,22 +20,45 @@ The remaining steps, with the commands, are in [WHAT_TO_DO.md](WHAT_TO_DO.md).
 | Index finger down | Down arrow | Previous video |
 | Thumbs up | L | Like |
 | Open palm | Space | Play / pause |
-| Anything else | none | No command |
+| No hand / unclear | none | No command |
 
-A pose fires once. It will not repeat until the camera returns to no gesture, and a cooldown blocks a second key even if the pose changes. Defaults are a confidence of 0.70, a neutral floor of 0.40, and a cooldown of 700 ms. The dashboard can change those on the board while the bridge is connected.
+A pose fires once. Drop your hand before the same pose can fire again.
 
-## Layout
+## How the loop is split
 
-| Path | Owner |
+| Step | Runs on |
 | --- | --- |
-| `firmware/src/camera/` | Camera init and frames |
-| `firmware/src/preprocessing/` | Scale to 64×64 grayscale |
-| `firmware/src/gesture_recognition/` | On-device CNN |
-| `firmware/src/decision/` | Threshold, latch, cooldown |
-| `firmware/src/ble_hid/` | BLE keyboard |
-| `dashboard/` | Monitor UI |
-| `model/` | Dataset and training |
-| `evaluation/` | Accuracy, latency, power, user study |
-| `tools/` | Serial bridge and frame collector |
+| Camera frame | ESP32 |
+| Hand skeleton | Laptop (class MediaPipe helper) |
+| Gesture ML classification | ESP32 |
+| Decision + cooldown | ESP32 |
+| Bluetooth key | ESP32 |
 
-Pin map and the Freenove sources it comes from: `docs/hardware.md`. How this meets the course brief: `docs/course-requirements.md`.
+The dashboard at http://127.0.0.1:8733 is a monitor and training UI. It is not the gesture classifier.
+
+## Repo map
+
+| Path | Purpose |
+| --- | --- |
+| `PARTNER_BOOTUP.md` | Partner day-1 boot guide |
+| `firmware/` | ESP32 firmware |
+| `dashboard/` | Live UI |
+| `tools/serial_bridge.py` | USB bridge |
+| `tools/hand_gestures.py` | Hand skeleton finder |
+| `model/training/train_landmarks.py` | Landmark model trainer |
+| `evaluation/user_study/` | 5-person study plan |
+| `docs/hardware.md` | Pins and Freenove notes |
+| `docs/course-requirements.md` | Course requirement mapping |
+
+## Status
+
+| Piece | Status |
+| --- | --- |
+| Camera + live preview | Working over USB serial |
+| Landmark gesture model on ESP32 | Flashed and used for live poses |
+| Bluetooth keyboard output | Implemented as **Touchless Keys** |
+| TikTok demo | Needs a connected Bluetooth session and a focused TikTok window |
+| User study | Protocol ready, no sessions run yet |
+| Power numbers | Need a USB meter |
+
+Older checklist notes: [WHAT_TO_DO.md](WHAT_TO_DO.md). Prefer `PARTNER_BOOTUP.md` for getting the board running.
