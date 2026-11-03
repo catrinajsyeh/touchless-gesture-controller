@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <esp_heap_caps.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -158,9 +159,31 @@ void runVision() {
     return;
   }
   const uint32_t started = micros();
+  const uint32_t now_preview = millis();
+  const bool send_color = snapshot.layout == kPixelsJpeg && g_preview &&
+                          (uint32_t)(now_preview - g_last_preview_ms) > 180;
+  uint8_t* jpeg_copy = nullptr;
+  size_t jpeg_len = 0;
+  int jpeg_w = 0;
+  int jpeg_h = 0;
+  if (send_color && snapshot.length >= 32 && snapshot.length <= 100000) {
+    jpeg_copy = (uint8_t*)heap_caps_malloc(snapshot.length, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (jpeg_copy != nullptr) {
+      memcpy(jpeg_copy, snapshot.data, snapshot.length);
+      jpeg_len = snapshot.length;
+      jpeg_w = snapshot.width;
+      jpeg_h = snapshot.height;
+    }
+  }
   const bool prepared = prepareModelInput(snapshot.data, snapshot.width, snapshot.height, snapshot.length,
                                           snapshot.layout, g_swap, &g_prepared);
   g_camera.release();
+  if (jpeg_copy != nullptr) {
+    g_telemetry.frameJpeg(jpeg_copy, jpeg_len, jpeg_w, jpeg_h);
+    free(jpeg_copy);
+    jpeg_copy = nullptr;
+    g_last_preview_ms = millis();
+  }
   if (!prepared) {
     g_telemetry.log("error", "Could not scale this frame to the model input.");
     return;
@@ -205,10 +228,8 @@ void runVision() {
   report.key_name = key_name;
   g_telemetry.inference(report);
 
-  const uint32_t now = millis();
-  if (g_want_frame || (g_preview && (uint32_t)(now - g_last_preview_ms) > 700)) {
+  if (g_want_frame) {
     g_telemetry.frame(g_prepared.preview, g_prepared.width, g_prepared.height);
-    g_last_preview_ms = now;
     g_want_frame = false;
   }
   setLed(false);
@@ -217,6 +238,7 @@ void runVision() {
 }  // namespace
 
 void setup() {
+  Serial.setTxBufferSize(16384);
   Serial.begin(TOUCHLESS_BAUD);
   delay(400);
   pinMode(TOUCHLESS_LED_GPIO, OUTPUT);

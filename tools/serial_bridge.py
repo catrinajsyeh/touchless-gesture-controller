@@ -1,10 +1,11 @@
-"""Serve the latest ESP32 telemetry to the dashboard.
+"""Serve the ESP32 camera to the dashboard and save training photos.
 
-The bridge only forwards JSON the board already computed. It does not
-classify images. Stop this process before collect_dataset.py, because both
-need the same serial port.
+Live gestures come from the workshop hand tracker on each camera frame.
+Stop this process before collect_dataset.py, because both need the same
+serial port.
 """
 
+import base64
 import json
 import sys
 import threading
@@ -17,6 +18,7 @@ import serial
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from tools.dataset_service import counts, predict_gray, save_gray, save_image, start_train, train_status
 from tools.ports import candidates, choose
 from tools.protocol import BAUD, BRIDGE_HOST, BRIDGE_PORT
 
@@ -32,10 +34,28 @@ state = {
     "frame": None,
     "activity": [],
     "logs": [],
+    "jpeg_seq": 0,
+    "hand": None,
+    "hand_crop": None,
+    "hand_seq": 0,
+    "keys_armed": False,
+    "capturing": False,
+    "saw_neutral": True,
+    "last_key": 0,
+}
+
+KEYS = {
+    "POINT_UP": "up",
+    "POINT_DOWN": "down",
+    "THUMBS_UP": "l",
+    "OPEN_PALM": "space",
 }
 lock = threading.Lock()
 serial_port = None
 stop = False
+gray_seq = 0
+gray_event = threading.Event()
+serial_cmd_lock = threading.Lock()
 
 
 def remember(kind, payload):
@@ -114,9 +134,16 @@ def reader(port_name):
                     except json.JSONDecodeError:
                         continue
                     kind = payload.get("type")
-                    if kind == "frame":
+                    if kind == "frame" and payload.get("fmt") == "jpeg":
                         with lock:
+                            state["jpeg_seq"] += 1
                             state["frame"] = payload
+                    elif kind == "frame":
+                        global gray_seq
+                        with lock:
+                            state["gray"] = payload
+                            gray_seq += 1
+                            gray_event.set()
                     elif kind in ("status", "inference", "key"):
                         remember(kind, payload)
                     elif kind in ("log", "boot", "ack"):
@@ -175,19 +202,54 @@ class Handler(BaseHTTPRequestHandler):
                 "logs": list(state["logs"]),
                 "evaluation": evaluation,
                 "ports": [{"device": device, "description": description} for _, device, description in candidates()],
+                "dataset": counts(),
+                "train": train_status(),
+                "hand": state["hand"],
             }
         self._send(200, snapshot)
 
     def do_POST(self):
-        if self.path.split("?", 1)[0] != "/command":
-            self._send(404, {"error": "not_found"})
-            return
+        path = self.path.split("?", 1)[0]
         length = int(self.headers.get("Content-Length", "0"))
         raw = self.rfile.read(length)
         try:
-            command = json.loads(raw.decode("utf-8"))
+            command = json.loads(raw.decode("utf-8") or "{}")
         except json.JSONDecodeError:
             self._send(400, {"ok": False, "detail": "bad_json"})
+            return
+        if path == "/capture":
+            label = command.get("label")
+            count = int(command.get("count") or 1)
+            count = max(1, min(count, 40))
+            try:
+                saved = capture_photos(label, count)
+            except Exception as exc:
+                self._send(409, {"ok": False, "detail": str(exc)})
+                return
+            self._send(200, {"ok": True, "saved": saved, "dataset": counts()})
+            return
+        if path == "/train":
+            started = start_train()
+            status = train_status()
+            self._send(200 if started or status["status"] == "running" else 400, {"ok": started, **status})
+            return
+        if path == "/keys":
+            with lock:
+                state["keys_armed"] = bool(command.get("value"))
+                if not state["keys_armed"]:
+                    state["saw_neutral"] = True
+            self._send(200, {"ok": True})
+            return
+        if path == "/predict":
+            try:
+                result = predict_live()
+            except Exception as exc:
+                self._send(409, {"ok": False, "detail": str(exc)})
+                return
+            self._send(200, result)
+            return
+        if path != "/command":
+            self._send(404, {"error": "not_found"})
             return
         link = serial_port
         if link is None or not getattr(link, "is_open", False):
@@ -202,6 +264,166 @@ class Handler(BaseHTTPRequestHandler):
         self._send(200, {"ok": True})
 
 
+def write_command(command):
+    link = serial_port
+    if link is None or not getattr(link, "is_open", False):
+        raise RuntimeError("serial_closed")
+    link.write(json.dumps(command, separators=(",", ":")).encode("utf-8") + b"\n")
+
+
+def wait_gray(timeout=3):
+    global gray_seq
+    with lock:
+        seen = gray_seq
+        gray_event.clear()
+    write_command({"cmd": "frame"})
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if gray_event.wait(0.05):
+            with lock:
+                if gray_seq > seen and state.get("gray"):
+                    return state["gray"]
+            gray_event.clear()
+    raise TimeoutError("The board did not send a training frame.")
+
+
+def wait_hand(seen, timeout=3):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        with lock:
+            seq = state.get("hand_seq", 0)
+            hand = state.get("hand") or {}
+            crop = state.get("hand_crop")
+        if seq > seen and hand.get("hand") and crop is not None:
+            return crop.copy(), seq
+        time.sleep(0.05)
+    raise TimeoutError(
+        "No hand in the picture. Hold your hand close to the lens, with your face farther back, and try again."
+    )
+
+
+def capture_photos(label, count):
+    if label == "NO_GESTURE":
+        return capture_scene(count)
+    saved = []
+    with serial_cmd_lock:
+        with lock:
+            state["capturing"] = True
+            seen = state.get("hand_seq", 0)
+        write_command({"cmd": "suspend", "value": 1})
+        try:
+            for _ in range(count):
+                crop, seen = wait_hand(seen)
+                saved.append(save_image(crop, label))
+                time.sleep(0.2)
+        finally:
+            with lock:
+                state["capturing"] = False
+            try:
+                write_command({"cmd": "suspend", "value": 0})
+            except Exception:
+                pass
+    return saved
+
+
+def capture_scene(count):
+    saved = []
+    with serial_cmd_lock:
+        with lock:
+            state["capturing"] = True
+        write_command({"cmd": "suspend", "value": 1})
+        try:
+            for _ in range(count):
+                saved.append(save_gray(wait_gray(), "NO_GESTURE"))
+                time.sleep(0.3)
+        finally:
+            with lock:
+                state["capturing"] = False
+            try:
+                write_command({"cmd": "suspend", "value": 0})
+            except Exception:
+                pass
+    return saved
+
+
+def maybe_send_key(label):
+    now = time.time()
+    with lock:
+        if state.get("capturing") or not state.get("keys_armed"):
+            return
+        ble = (state.get("status") or {}).get("ble")
+        if ble != "connected" or label not in KEYS:
+            return
+        if not state.get("saw_neutral", True):
+            return
+        if now - state.get("last_key", 0) < 0.7:
+            return
+        state["saw_neutral"] = False
+        state["last_key"] = now
+    try:
+        with serial_cmd_lock:
+            write_command({"cmd": "keytest", "key": KEYS[label]})
+    except Exception:
+        with lock:
+            state["saw_neutral"] = True
+
+
+def watch_hands():
+    try:
+        from tools.hand_gestures import analyze_jpeg, tracker
+        tracker()
+    except Exception as exc:
+        with lock:
+            state["error"] = f"Hand tracker failed to start: {exc}"
+        print(f"Hand tracker failed: {exc}")
+        return
+    print("Hand tracker ready")
+    seen = 0
+    while not stop:
+        with lock:
+            seq = state.get("jpeg_seq", 0)
+            frame = state.get("frame")
+        if seq == seen or not frame or not frame.get("data"):
+            time.sleep(0.04)
+            continue
+        try:
+            found = analyze_jpeg(base64.b64decode(frame["data"]))
+        except Exception as exc:
+            print(f"Hand tracker: {exc}")
+            seen = seq
+            time.sleep(0.1)
+            continue
+        if found is None:
+            seen = seq
+            continue
+        encoded = base64.b64encode(found["jpeg"]).decode("ascii")
+        with lock:
+            if state.get("jpeg_seq") == seq:
+                updated = dict(frame)
+                updated["data"] = encoded
+                state["frame"] = updated
+            state["hand"] = {
+                "label": found["label"],
+                "name": found["name"],
+                "confidence": found["confidence"],
+                "hand": found["hand"],
+            }
+            state["hand_crop"] = None if found["crop"] is None else found["crop"].copy()
+            state["hand_seq"] += 1
+            if found["label"] == "NO_GESTURE":
+                state["saw_neutral"] = True
+            label = found["label"]
+        seen = seq
+        if label in KEYS:
+            maybe_send_key(label)
+
+
+def predict_live():
+    with serial_cmd_lock:
+        gray = wait_gray()
+    return predict_gray(gray)
+
+
 def main():
     global stop
     port_name = choose(sys.argv[1] if len(sys.argv) > 1 else None)
@@ -213,6 +435,7 @@ def main():
         raise SystemExit(1)
     print(f"Bridge on http://{BRIDGE_HOST}:{BRIDGE_PORT}  serial {port_name} @ {BAUD}")
     threading.Thread(target=reader, args=(port_name,), daemon=True).start()
+    threading.Thread(target=watch_hands, daemon=True).start()
     server = ThreadingHTTPServer((BRIDGE_HOST, BRIDGE_PORT), Handler)
     try:
         server.serve_forever()

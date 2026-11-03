@@ -4,7 +4,7 @@
 // Same map Freenove ships as CAMERA_MODEL_ESP32S3_EYE.
 // PWDN and RESET are not wired on this board.
 
-#define TOUCHLESS_BAUD 460800
+#define TOUCHLESS_BAUD 921600
 
 #define TOUCHLESS_LED_GPIO 2
 #define TOUCHLESS_LED_ACTIVE_HIGH 1

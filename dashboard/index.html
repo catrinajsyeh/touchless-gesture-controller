@@ -3,144 +3,52 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Touchless</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560;9..144,640&family=Outfit:wght@360;480;580&display=swap" rel="stylesheet">
+  <title>Touchless training</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="app">
+  <main class="page">
     <header class="top">
-      <div class="brand">
-        <span class="mark" aria-hidden="true"></span>
-        <div>
-          <p class="eyebrow">ECE 209AS · edge controller</p>
-          <h1>Touchless</h1>
-        </div>
+      <div>
+        <p class="eyebrow">Touchless</p>
+        <h1 id="title">Train the gestures</h1>
       </div>
-      <p class="tagline">Hand poses on the ESP32 become TikTok keys. The laptop does not recognize the gesture.</p>
-      <div class="mode" role="group" aria-label="Data source">
-        <button type="button" id="modeDemo" class="mode-btn is-on" aria-pressed="true">Demo</button>
-        <button type="button" id="modeLive" class="mode-btn" aria-pressed="false">Live device</button>
-      </div>
+      <nav class="tabs" aria-label="Sections">
+        <button type="button" id="tabTrain" class="tab is-on">Train</button>
+        <button type="button" id="tabCheck" class="tab">Check</button>
+      </nav>
     </header>
 
-    <p class="banner" id="banner" role="status"></p>
+    <p class="status" id="linkStatus">Looking for the board…</p>
 
-    <main class="layout">
-      <aside class="rail" aria-label="Connection">
-        <article class="status-card" id="cardBoard">
-          <span class="dot"></span>
-          <div>
-            <h2>Board link</h2>
-            <p class="detail">Sample</p>
-          </div>
-        </article>
-        <article class="status-card" id="cardBle">
-          <span class="dot"></span>
-          <div>
-            <h2>Bluetooth</h2>
-            <p class="detail">Sample</p>
-          </div>
-        </article>
-        <article class="status-card" id="cardCamera">
-          <span class="dot"></span>
-          <div>
-            <h2>Camera</h2>
-            <p class="detail">Sample</p>
-          </div>
-        </article>
-        <article class="status-card" id="cardModel">
-          <span class="dot"></span>
-          <div>
-            <h2>Recognizer</h2>
-            <p class="detail">Sample</p>
-          </div>
-        </article>
-        <ol class="pipeline" id="pipeline">
-          <li>Capture</li>
-          <li>Scale</li>
-          <li>On-device model</li>
-          <li>Decision</li>
-          <li>BLE key</li>
-        </ol>
-      </aside>
+    <div class="stage">
+      <div class="preview-wrap">
+        <img id="photo" alt="Camera view">
+        <p class="countdown" id="countdown" hidden>3</p>
+        <p class="empty" id="empty">Waiting for a picture from the board.</p>
+        <p class="seen" id="seen">Looking for a hand…</p>
+      </div>
 
-      <section class="stage">
-        <div class="finder" id="finder">
-          <span class="corner nw"></span>
-          <span class="corner ne"></span>
-          <span class="corner sw"></span>
-          <span class="corner se"></span>
-          <canvas id="preview" width="64" height="64" hidden></canvas>
-          <div id="diagram" class="diagram"></div>
-          <p class="finder-note" id="finderNote"></p>
-          <p class="pill" id="gesturePill">No gesture</p>
-        </div>
-        <div class="gesture-grid" id="gestures"></div>
-      </section>
-
-      <aside class="insight">
-        <section class="panel">
-          <header class="panel-head">
-            <h2>Detection</h2>
-            <span class="chip" id="detectChip">Sample</span>
-          </header>
-          <p class="gesture-name" id="gestureName">No gesture</p>
-          <p class="gesture-sub" id="gestureSub">Nothing is sent.</p>
-          <div class="meter" aria-hidden="true"><span id="meter"></span></div>
-          <p class="confidence" id="confidence">Confidence —</p>
-          <p class="reason" id="reason"></p>
+      <aside class="side">
+        <section id="trainPane">
+          <p class="choose">Green pose gets saved.</p>
+          <div class="poses" id="poses"></div>
+          <div class="actions">
+            <button type="button" id="save" class="primary">Save 10 photos of Index up</button>
+            <button type="button" id="train">Train model</button>
+          </div>
+          <p class="message" id="trainMsg"></p>
         </section>
-        <section class="panel">
-          <header class="panel-head">
-            <h2>Activity</h2>
-            <span class="chip" id="activityChip">Sample</span>
-          </header>
-          <ol class="activity" id="activity"></ol>
-        </section>
-        <section class="panel">
-          <header class="panel-head">
-            <h2>Performance</h2>
-            <span class="chip" id="metricChip">Sample</span>
-          </header>
-          <div class="metrics" id="metrics"></div>
+
+        <section id="checkPane" hidden>
+          <p class="guess" id="guess">—</p>
+          <p class="confidence" id="confidence"></p>
+          <ul class="scores" id="scores"></ul>
+          <p class="help" id="checkNote">Hold the pose, drop your hand, then hold it again. A key is sent only on this tab when Touchless Keys is connected.</p>
         </section>
       </aside>
-    </main>
-
-    <section class="settings" id="settings">
-      <header class="panel-head">
-        <h2>Controls</h2>
-        <p id="settingsNote"></p>
-      </header>
-      <div class="controls">
-        <label>Confidence threshold <strong id="thresholdLabel">0.70</strong>
-          <input id="threshold" type="range" min="0.50" max="0.95" step="0.01" value="0.70">
-        </label>
-        <label>Neutral floor <strong id="floorLabel">0.40</strong>
-          <input id="floor" type="range" min="0.05" max="0.60" step="0.01" value="0.40">
-        </label>
-        <label>Cooldown <strong id="cooldownLabel">700 ms</strong>
-          <input id="cooldown" type="range" min="200" max="3000" step="50" value="700">
-        </label>
-      </div>
-      <div class="toggles" id="toggles"></div>
-      <div class="orient">
-        <label><input type="checkbox" id="vflip"> Flip vertical</label>
-        <label><input type="checkbox" id="hmirror"> Mirror</label>
-        <label><input type="checkbox" id="swap"> Swap camera bytes</label>
-        <label><input type="checkbox" id="pauseKeys"> Pause keys</label>
-      </div>
-      <div class="tests">
-        <p>Manual key test. This skips the camera and the model. It only checks that Windows received a HID key.</p>
-        <div class="test-row" id="keyTests"></div>
-        <button type="button" class="ghost" id="forget">Forget Bluetooth bonds</button>
-        <button type="button" class="ghost" id="clearPose">Clear pose</button>
-      </div>
-    </section>
-  </div>
+    </div>
+  </main>
   <script src="app.js"></script>
 </body>
 </html>

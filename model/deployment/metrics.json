@@ -1,0 +1,169 @@
+{
+  "counts": {
+    "POINT_UP": 20,
+    "POINT_DOWN": 20,
+    "THUMBS_UP": 20,
+    "OPEN_PALM": 20,
+    "NO_GESTURE": 20
+  },
+  "float32": {
+    "accuracy": 1.0,
+    "confusion_matrix": [
+      [
+        4,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        4,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        4,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        4,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        4
+      ]
+    ],
+    "labels": [
+      "POINT_UP",
+      "POINT_DOWN",
+      "THUMBS_UP",
+      "OPEN_PALM",
+      "NO_GESTURE"
+    ],
+    "per_class": {
+      "POINT_UP": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4,
+        "false_positive_rate_on_no_gesture": 0.0
+      },
+      "POINT_DOWN": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4,
+        "false_positive_rate_on_no_gesture": 0.0
+      },
+      "THUMBS_UP": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4,
+        "false_positive_rate_on_no_gesture": 0.0
+      },
+      "OPEN_PALM": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4,
+        "false_positive_rate_on_no_gesture": 0.0
+      },
+      "NO_GESTURE": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4
+      }
+    }
+  },
+  "int8_dequantized": {
+    "accuracy": 1.0,
+    "confusion_matrix": [
+      [
+        4,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        4,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        4,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        4,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        4
+      ]
+    ],
+    "labels": [
+      "POINT_UP",
+      "POINT_DOWN",
+      "THUMBS_UP",
+      "OPEN_PALM",
+      "NO_GESTURE"
+    ],
+    "per_class": {
+      "POINT_UP": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4,
+        "false_positive_rate_on_no_gesture": 0.0
+      },
+      "POINT_DOWN": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4,
+        "false_positive_rate_on_no_gesture": 0.0
+      },
+      "THUMBS_UP": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4,
+        "false_positive_rate_on_no_gesture": 0.0
+      },
+      "OPEN_PALM": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4,
+        "false_positive_rate_on_no_gesture": 0.0
+      },
+      "NO_GESTURE": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4
+      }
+    }
+  },
+  "float_weight_bytes": 78548,
+  "int8_weight_bytes": 19637,
+  "checksum": 4294954911,
+  "note": "Accuracy is on the held-out images from this dataset, not on the user study."
+}

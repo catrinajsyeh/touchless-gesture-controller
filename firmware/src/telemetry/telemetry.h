@@ -71,6 +71,7 @@ class Telemetry {
   void inference(const InferenceReport& report);
   void keyEvent(const char* source, const char* key_name, const char* gesture);
   void frame(const uint8_t* gray, int width, int height);
+  void frameJpeg(const uint8_t* jpeg, size_t length, int width, int height);
 
  private:
   bool parse(const char* line, DeviceCommand* command);

@@ -75,9 +75,9 @@ bool CameraManager::tryInit(uint32_t xclk_hz) {
   config.pin_pwdn = TOUCHLESS_PWDN_GPIO;
   config.pin_reset = TOUCHLESS_RESET_GPIO;
   config.xclk_freq_hz = xclk_hz;
-  config.pixel_format = PIXFORMAT_RGB565;
-  config.frame_size = FRAMESIZE_QQVGA;
-  config.jpeg_quality = 12;
+  config.pixel_format = PIXFORMAT_JPEG;
+  config.frame_size = FRAMESIZE_HVGA;
+  config.jpeg_quality = 16;
   config.fb_count = 1;
   config.fb_location = CAMERA_FB_IN_PSRAM;
   config.grab_mode = CAMERA_GRAB_LATEST;
@@ -105,7 +105,8 @@ void CameraManager::readSensor() {
   sensor->set_whitebal(sensor, 1);
   sensor->set_exposure_ctrl(sensor, 1);
   sensor->set_gain_ctrl(sensor, 1);
-  sensor->set_framesize(sensor, FRAMESIZE_QQVGA);
+  sensor->set_framesize(sensor, FRAMESIZE_HVGA);
+  sensor->set_quality(sensor, 16);
 }
 
 void CameraManager::setOrientation(bool vflip, bool hmirror) {
@@ -133,7 +134,9 @@ bool CameraManager::capture(CameraSnapshot* out) {
   out->height = (int)frame->height;
   frame_w_ = out->width;
   frame_h_ = out->height;
-  if (frame->format == PIXFORMAT_GRAYSCALE) {
+  if (frame->format == PIXFORMAT_JPEG) {
+    out->layout = kPixelsJpeg;
+  } else if (frame->format == PIXFORMAT_GRAYSCALE) {
     out->layout = kPixelsGray;
   } else if (frame->format == PIXFORMAT_RGB565) {
     out->layout = kPixelsRgb565;

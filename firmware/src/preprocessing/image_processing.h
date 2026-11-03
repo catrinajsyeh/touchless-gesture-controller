@@ -7,7 +7,8 @@
 
 enum PixelLayout : uint8_t {
   kPixelsRgb565 = 0,
-  kPixelsGray = 1
+  kPixelsGray = 1,
+  kPixelsJpeg = 2
 };
 
 struct PreparedFrame {

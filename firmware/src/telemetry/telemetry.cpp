@@ -3,6 +3,7 @@
 #include "config/board_config.h"
 
 #include <Arduino.h>
+#include <esp_heap_caps.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -141,6 +142,39 @@ void Telemetry::frame(const uint8_t* gray, int width, int height) {
   }
   encoded[out] = '\0';
   snprintf(message, sizeof(message), "{\"type\":\"frame\",\"w\":%d,\"h\":%d,\"fmt\":\"gray\",\"data\":\"%s\"}", width,
+           height, encoded);
+  print(message);
+}
+
+void Telemetry::frameJpeg(const uint8_t* jpeg, size_t length, int width, int height) {
+  if (jpeg == nullptr || length < 32 || length > 100000) return;
+  const size_t encoded_need = 4 * ((length + 2) / 3) + 1;
+  const size_t message_need = encoded_need + 96;
+  static char* encoded = nullptr;
+  static char* message = nullptr;
+  static size_t message_cap = 0;
+  if (message_cap < message_need) {
+    free(encoded);
+    free(message);
+    encoded = (char*)heap_caps_malloc(encoded_need, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    message = (char*)heap_caps_malloc(message_need, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    message_cap = (encoded != nullptr && message != nullptr) ? message_need : 0;
+  }
+  if (encoded == nullptr || message == nullptr) return;
+
+  size_t out = 0;
+  for (size_t i = 0; i < length; i += 3) {
+    const int b0 = jpeg[i];
+    const int b1 = (i + 1 < length) ? jpeg[i + 1] : 0;
+    const int b2 = (i + 2 < length) ? jpeg[i + 2] : 0;
+    const int triple = (b0 << 16) | (b1 << 8) | b2;
+    encoded[out++] = kAlphabet[(triple >> 18) & 63];
+    encoded[out++] = kAlphabet[(triple >> 12) & 63];
+    encoded[out++] = (i + 1 < length) ? kAlphabet[(triple >> 6) & 63] : '=';
+    encoded[out++] = (i + 2 < length) ? kAlphabet[triple & 63] : '=';
+  }
+  encoded[out] = '\0';
+  snprintf(message, message_cap, "{\"type\":\"frame\",\"w\":%d,\"h\":%d,\"fmt\":\"jpeg\",\"data\":\"%s\"}", width,
            height, encoded);
   print(message);
 }

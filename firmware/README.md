@@ -1,6 +1,6 @@
 # Firmware
 
-PlatformIO project for the Freenove ESP32-S3-WROOM. The default environment talks to the CH343 USB-serial port (UART0 on GPIO43/GPIO44) at 460800 baud. PSRAM is octal, which the camera frame buffer needs. Flash size is 8 MB so the same image boots on both the N8R8 and N16R8 modules. A 16 MB module simply leaves the extra flash unused.
+PlatformIO project for the Freenove ESP32-S3-WROOM. The default environment talks to the CH343 USB-serial port (UART0 on GPIO43/GPIO44) at 921600 baud. PSRAM is octal, which the camera frame buffer needs. Flash size is 8 MB so the same image boots on both the N8R8 and N16R8 modules. A 16 MB module simply leaves the extra flash unused.
 
 ## Build and flash
 

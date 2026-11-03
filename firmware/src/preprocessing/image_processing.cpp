@@ -2,6 +2,9 @@
 
 #include "config/board_config.h"
 
+#include <esp_heap_caps.h>
+#include <img_converters.h>
+
 namespace {
 
 int grayFromRgb565(uint16_t pixel) {
@@ -23,6 +26,24 @@ uint16_t readRgb565(const uint8_t* src, int index, bool byte_swap) {
 bool prepareModelInput(const uint8_t* src, int src_w, int src_h, size_t src_len, PixelLayout layout,
                        bool byte_swap, PreparedFrame* out) {
   if (src == nullptr || out == nullptr || src_w <= 0 || src_h <= 0) return false;
+  if (layout == kPixelsJpeg) {
+    int divisor = 4;
+    if (src_w / divisor < TOUCHLESS_MODEL_INPUT || src_h / divisor < TOUCHLESS_MODEL_INPUT) divisor = 2;
+    if (src_w / divisor < TOUCHLESS_MODEL_INPUT || src_h / divisor < TOUCHLESS_MODEL_INPUT) divisor = 1;
+    const int dw = src_w / divisor;
+    const int dh = src_h / divisor;
+    const jpg_scale_t scale = divisor == 4 ? JPG_SCALE_4X : divisor == 2 ? JPG_SCALE_2X : JPG_SCALE_NONE;
+    static uint8_t* decoded = nullptr;
+    static size_t decoded_cap = 0;
+    const size_t need_rgb = (size_t)dw * dh * 2;
+    if (decoded_cap < need_rgb) {
+      free(decoded);
+      decoded = (uint8_t*)heap_caps_malloc(need_rgb, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+      decoded_cap = decoded == nullptr ? 0 : need_rgb;
+    }
+    if (decoded == nullptr || !jpg2rgb565(src, src_len, decoded, scale)) return false;
+    return prepareModelInput(decoded, dw, dh, need_rgb, kPixelsRgb565, false, out);
+  }
   const size_t need = layout == kPixelsRgb565 ? (size_t)src_w * src_h * 2 : (size_t)src_w * src_h;
   if (src_len < need) return false;
 

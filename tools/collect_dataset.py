@@ -45,8 +45,8 @@ def send(link, payload):
 
 def one_frame(link):
     send(link, {"cmd": "frame"})
-    for message in read_messages(link, 3):
-        if message.get("type") == "frame":
+    for message in read_messages(link, 8):
+        if message.get("type") == "frame" and message.get("fmt", "gray") == "gray":
             return message
     raise TimeoutError("The board did not return a frame. Check the camera ribbon and the serial baud.")
 
