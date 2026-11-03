@@ -15,13 +15,18 @@ struct DeviceCommand {
     kOrient,
     kForget,
     kStatus,
-    kSuspend
+    kSuspend,
+    kCrop
   };
 
   Type type;
   char name[24];
   char key[16];
   float number;
+  float crop_x;
+  float crop_y;
+  float crop_w;
+  float crop_h;
   int flag;
   int vflip;
   int hmirror;

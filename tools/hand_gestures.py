@@ -117,6 +117,7 @@ def analyze_jpeg(jpeg_bytes):
     confidence = 0.0
     present = False
     crop = None
+    box = None
     if result.hand_landmarks:
         present = True
         hand = result.hand_landmarks[0]
@@ -125,6 +126,18 @@ def analyze_jpeg(jpeg_bytes):
         if span < 0.18:
             label, confidence = "NO_GESTURE", 0.2
         _draw(image, hand)
+        height, width = image.shape[:2]
+        xs = [point.x for point in hand]
+        ys = [point.y for point in hand]
+        pad_x = max(0.04, (max(xs) - min(xs)) * 0.35)
+        pad_y = max(0.04, (max(ys) - min(ys)) * 0.35)
+        x0 = max(0.0, min(xs) - pad_x)
+        y0 = max(0.0, min(ys) - pad_y)
+        x1 = min(1.0, max(xs) + pad_x)
+        y1 = min(1.0, max(ys) + pad_y)
+        box = {"x": round(x0, 3), "y": round(y0, 3), "w": round(x1 - x0, 3), "h": round(y1 - y0, 3)}
+    else:
+        box = None
     ok, encoded = cv2.imencode(".jpg", image, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
     pose = NAMES[label] if label != "NO_GESTURE" else ("Hand seen" if present else "No hand")
     return {
@@ -134,6 +147,7 @@ def analyze_jpeg(jpeg_bytes):
         "hand": present and crop is not None,
         "jpeg": encoded.tobytes() if ok else jpeg_bytes,
         "crop": crop,
+        "box": box,
     }
 
 

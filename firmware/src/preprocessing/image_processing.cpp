@@ -24,7 +24,7 @@ uint16_t readRgb565(const uint8_t* src, int index, bool byte_swap) {
 }  // namespace
 
 bool prepareModelInput(const uint8_t* src, int src_w, int src_h, size_t src_len, PixelLayout layout,
-                       bool byte_swap, PreparedFrame* out) {
+                       bool byte_swap, const HandWindow* hand, PreparedFrame* out) {
   if (src == nullptr || out == nullptr || src_w <= 0 || src_h <= 0) return false;
   if (layout == kPixelsJpeg) {
     int divisor = 4;
@@ -42,16 +42,36 @@ bool prepareModelInput(const uint8_t* src, int src_w, int src_h, size_t src_len,
       decoded_cap = decoded == nullptr ? 0 : need_rgb;
     }
     if (decoded == nullptr || !jpg2rgb565(src, src_len, decoded, scale)) return false;
-    return prepareModelInput(decoded, dw, dh, need_rgb, kPixelsRgb565, false, out);
+    return prepareModelInput(decoded, dw, dh, need_rgb, kPixelsRgb565, false, hand, out);
   }
   const size_t need = layout == kPixelsRgb565 ? (size_t)src_w * src_h * 2 : (size_t)src_w * src_h;
   if (src_len < need) return false;
 
   constexpr int kOut = TOUCHLESS_MODEL_INPUT;
+  int crop_x = 0;
+  int crop_y = 0;
+  int crop_w = src_w;
+  int crop_h = src_h;
+  if (hand != nullptr && hand->present && hand->w > 0.02f && hand->h > 0.02f) {
+    crop_x = (int)(hand->x * src_w);
+    crop_y = (int)(hand->y * src_h);
+    crop_w = (int)(hand->w * src_w);
+    crop_h = (int)(hand->h * src_h);
+    if (crop_x < 0) crop_x = 0;
+    if (crop_y < 0) crop_y = 0;
+    if (crop_x + crop_w > src_w) crop_w = src_w - crop_x;
+    if (crop_y + crop_h > src_h) crop_h = src_h - crop_y;
+    if (crop_w < 8 || crop_h < 8) {
+      crop_x = 0;
+      crop_y = 0;
+      crop_w = src_w;
+      crop_h = src_h;
+    }
+  }
   for (int y = 0; y < kOut; ++y) {
-    const int sy = y * src_h / kOut;
+    const int sy = crop_y + y * crop_h / kOut;
     for (int x = 0; x < kOut; ++x) {
-      const int sx = x * src_w / kOut;
+      const int sx = crop_x + x * crop_w / kOut;
       int gray = 0;
       if (layout == kPixelsGray) {
         gray = src[sy * src_w + sx];

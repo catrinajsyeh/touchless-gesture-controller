@@ -100,7 +100,6 @@ async function poll() {
     renderHand();
     poseButtons();
     renderTrain();
-    armKeys();
   } catch {
     state.live = null;
     linkStatus.textContent = "The camera bridge is not running.";
@@ -111,22 +110,26 @@ async function poll() {
 }
 
 function renderHand() {
+  const inference = state.live && state.live.inference;
   const hand = state.live && state.live.hand;
   const seen = document.getElementById("seen");
-  const text = !hand
-    ? "Looking for a hand…"
-    : hand.label && hand.label !== "NO_GESTURE"
-      ? hand.name
-      : hand.hand
-        ? "Hand seen, pose not recognized"
-        : "No hand in frame";
+  let text = "Looking for a hand…";
+  let detail = "The skeleton is the hand. The word is the model on the board.";
+  if (hand && hand.hand === false) {
+    text = "No hand in frame";
+    detail = "Your face is ignored until a hand is found.";
+  } else if (inference && inference.gesture) {
+    text = NAMES[inference.gesture] || inference.gesture;
+    detail = `Model confidence ${Math.round((inference.confidence || 0) * 100)}%`;
+  }
   if (seen) seen.textContent = text;
   if (state.tab !== "check") return;
   guess.textContent = text;
-  confidence.textContent = hand && hand.label && hand.label !== "NO_GESTURE"
-    ? `Confidence ${Math.round(hand.confidence * 100)}%`
-    : "Put your hand close to the lens. The tracker ignores your face.";
-  scores.innerHTML = "";
+  confidence.textContent = detail;
+  const values = inference && inference.scores;
+  scores.innerHTML = Array.isArray(values)
+    ? POSES.map((pose, index) => `<li><span>${pose.name}</span><span>${Math.round((values[index] || 0) * 100)}%</span></li>`).join("")
+    : "";
 }
 
 function armKeys() {
@@ -142,8 +145,7 @@ function setTab(tab) {
   document.getElementById("tabCheck").classList.toggle("is-on", tab === "check");
   document.getElementById("trainPane").hidden = tab !== "train";
   document.getElementById("checkPane").hidden = tab !== "check";
-  document.getElementById("title").textContent = tab === "train" ? "Train the gestures" : "Check the gesture";
-  armKeys();
+  document.getElementById("title").textContent = tab === "train" ? "Train the gestures" : "Check the model";
   renderHand();
 }
 

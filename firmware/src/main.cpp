@@ -27,6 +27,8 @@ bool g_saw_frame = false;
 uint32_t g_last_status_ms = 0;
 uint32_t g_last_preview_ms = 0;
 bool g_want_frame = false;
+HandWindow g_hand = {};
+uint32_t g_hand_ms = 0;
 
 void setLed(bool on) {
   const bool level = TOUCHLESS_LED_ACTIVE_HIGH ? on : !on;
@@ -147,6 +149,14 @@ void handle(const DeviceCommand& command) {
       g_decision.setSuspended(command.number >= 0.5f);
       g_telemetry.ack("suspend", true, g_decision.suspended() ? "paused" : "live");
       break;
+    case DeviceCommand::kCrop:
+      g_hand.present = command.flag != 0;
+      g_hand.x = command.crop_x;
+      g_hand.y = command.crop_y;
+      g_hand.w = command.crop_w;
+      g_hand.h = command.crop_h;
+      g_hand_ms = millis();
+      break;
     case DeviceCommand::kNone:
       break;
   }
@@ -175,8 +185,11 @@ void runVision() {
       jpeg_h = snapshot.height;
     }
   }
+  const bool hand_now = g_hand.present && (uint32_t)(millis() - g_hand_ms) < 700;
+  HandWindow window = g_hand;
+  window.present = hand_now;
   const bool prepared = prepareModelInput(snapshot.data, snapshot.width, snapshot.height, snapshot.length,
-                                          snapshot.layout, g_swap, &g_prepared);
+                                          snapshot.layout, g_swap, &window, &g_prepared);
   g_camera.release();
   if (jpeg_copy != nullptr) {
     g_telemetry.frameJpeg(jpeg_copy, jpeg_len, jpeg_w, jpeg_h);
@@ -200,7 +213,15 @@ void runVision() {
   }
 
   const uint32_t infer_started = micros();
-  const Classification result = g_classifier.classify(g_prepared.model);
+  Classification result = {};
+  if (hand_now) {
+    result = g_classifier.classify(g_prepared.model);
+  } else {
+    result.id = kGestureNone;
+    result.confidence = 1.0f;
+    result.model_ready = g_classifier.ready();
+    result.scores[kGestureNone] = 1.0f;
+  }
   const uint32_t inference_us = micros() - infer_started;
   const DecisionOutcome outcome =
       g_decision.update(result.id, result.confidence, millis(), g_keyboard.connected());

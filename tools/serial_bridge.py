@@ -1,8 +1,8 @@
 """Serve the ESP32 camera to the dashboard and save training photos.
 
-Live gestures come from the workshop hand tracker on each camera frame.
-Stop this process before collect_dataset.py, because both need the same
-serial port.
+The class hand tracker finds the hand. The gesture itself is the model
+running on the board. Stop this process before collect_dataset.py, because
+both need the same serial port.
 """
 
 import base64
@@ -309,12 +309,17 @@ def capture_photos(label, count):
     with serial_cmd_lock:
         with lock:
             state["capturing"] = True
-            seen = state.get("hand_seq", 0)
         write_command({"cmd": "suspend", "value": 1})
         try:
             for _ in range(count):
-                crop, seen = wait_hand(seen)
-                saved.append(save_image(crop, label))
+                with lock:
+                    hand = state.get("hand") or {}
+                    box = hand.get("box")
+                    present = bool(hand.get("hand")) and box
+                if not present:
+                    raise TimeoutError("No hand in the picture. Put your hand in front of the lens, closer than your face.")
+                write_command({"cmd": "crop", "hand": 1, "x": box["x"], "y": box["y"], "w": box["w"], "h": box["h"]})
+                saved.append(save_gray(wait_gray(), label))
                 time.sleep(0.2)
         finally:
             with lock:
@@ -332,6 +337,7 @@ def capture_scene(count):
         with lock:
             state["capturing"] = True
         write_command({"cmd": "suspend", "value": 1})
+        write_command({"cmd": "crop", "hand": 0, "x": 0, "y": 0, "w": 1, "h": 1})
         try:
             for _ in range(count):
                 saved.append(save_gray(wait_gray(), "NO_GESTURE"))
@@ -397,25 +403,34 @@ def watch_hands():
             seen = seq
             continue
         encoded = base64.b64encode(found["jpeg"]).decode("ascii")
+        box = found.get("box") or {"x": 0, "y": 0, "w": 1, "h": 1}
+        command = {
+            "cmd": "crop",
+            "hand": 1 if found["hand"] else 0,
+            "x": box["x"],
+            "y": box["y"],
+            "w": box["w"],
+            "h": box["h"],
+        }
         with lock:
             if state.get("jpeg_seq") == seq:
                 updated = dict(frame)
                 updated["data"] = encoded
                 state["frame"] = updated
             state["hand"] = {
-                "label": found["label"],
-                "name": found["name"],
-                "confidence": found["confidence"],
                 "hand": found["hand"],
+                "box": box,
             }
             state["hand_crop"] = None if found["crop"] is None else found["crop"].copy()
             state["hand_seq"] += 1
-            if found["label"] == "NO_GESTURE":
-                state["saw_neutral"] = True
-            label = found["label"]
         seen = seq
-        if label in KEYS:
-            maybe_send_key(label)
+        if serial_cmd_lock.acquire(blocking=False):
+            try:
+                write_command(command)
+            except Exception:
+                pass
+            finally:
+                serial_cmd_lock.release()
 
 
 def predict_live():

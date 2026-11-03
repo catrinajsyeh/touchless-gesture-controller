@@ -235,6 +235,15 @@ bool Telemetry::parse(const char* line, DeviceCommand* command) {
   } else if (strcmp(cmd, "suspend") == 0) {
     command->type = DeviceCommand::kSuspend;
     extractNumber(line, "value", &command->number);
+  } else if (strcmp(cmd, "crop") == 0) {
+    command->type = DeviceCommand::kCrop;
+    float hand = 0;
+    extractNumber(line, "hand", &hand);
+    extractNumber(line, "x", &command->crop_x);
+    extractNumber(line, "y", &command->crop_y);
+    extractNumber(line, "w", &command->crop_w);
+    extractNumber(line, "h", &command->crop_h);
+    command->flag = hand >= 0.5f ? 1 : 0;
   } else {
     return false;
   }

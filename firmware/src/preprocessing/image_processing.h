@@ -11,6 +11,14 @@ enum PixelLayout : uint8_t {
   kPixelsJpeg = 2
 };
 
+struct HandWindow {
+  bool present;
+  float x;
+  float y;
+  float w;
+  float h;
+};
+
 struct PreparedFrame {
   float model[TOUCHLESS_MODEL_INPUT * TOUCHLESS_MODEL_INPUT];
   uint8_t preview[TOUCHLESS_MODEL_INPUT * TOUCHLESS_MODEL_INPUT];
@@ -19,4 +27,4 @@ struct PreparedFrame {
 };
 
 bool prepareModelInput(const uint8_t* src, int src_w, int src_h, size_t src_len, PixelLayout layout,
-                       bool byte_swap, PreparedFrame* out);
+                       bool byte_swap, const HandWindow* hand, PreparedFrame* out);
