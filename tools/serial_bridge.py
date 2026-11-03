@@ -404,14 +404,11 @@ def watch_hands():
             continue
         encoded = base64.b64encode(found["jpeg"]).decode("ascii")
         box = found.get("box") or {"x": 0, "y": 0, "w": 1, "h": 1}
-        command = {
-            "cmd": "crop",
-            "hand": 1 if found["hand"] else 0,
-            "x": box["x"],
-            "y": box["y"],
-            "w": box["w"],
-            "h": box["h"],
-        }
+        features = found.get("features")
+        if found["hand"] and features and len(features) == 42:
+            command = {"cmd": "landmarks", "hand": 1, "f": features}
+        else:
+            command = {"cmd": "landmarks", "hand": 0, "f": [0.0] * 42}
         with lock:
             if state.get("jpeg_seq") == seq:
                 updated = dict(frame)

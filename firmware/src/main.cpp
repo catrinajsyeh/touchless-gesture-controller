@@ -9,6 +9,7 @@
 #include "config/gesture_config.h"
 #include "decision/gesture_decision.h"
 #include "gesture_recognition/gesture_classifier.h"
+#include "gesture_recognition/landmark_classifier.h"
 #include "preprocessing/image_processing.h"
 #include "telemetry/telemetry.h"
 
@@ -19,6 +20,7 @@ CameraManager g_camera;
 BleKeyboard g_keyboard;
 GestureDecision g_decision;
 GestureClassifier g_classifier;
+LandmarkClassifier g_landmarks;
 PreparedFrame g_prepared;
 
 bool g_preview = true;
@@ -29,6 +31,9 @@ uint32_t g_last_preview_ms = 0;
 bool g_want_frame = false;
 HandWindow g_hand = {};
 uint32_t g_hand_ms = 0;
+float g_landmark_features[42];
+bool g_landmarks_ready = false;
+uint32_t g_landmark_ms = 0;
 
 void setLed(bool on) {
   const bool level = TOUCHLESS_LED_ACTIVE_HIGH ? on : !on;
@@ -75,9 +80,9 @@ void publishStatus() {
   report.frame_w = g_camera.frameWidth();
   report.frame_h = g_camera.frameHeight();
   report.ble_state = g_keyboard.state();
-  report.model_ready = g_classifier.ready();
-  report.model_domain = g_classifier.domain();
-  report.model_checksum = g_classifier.checksum();
+  report.model_ready = g_landmarks.ready();
+  report.model_domain = g_landmarks.domain();
+  report.model_checksum = g_landmarks.checksum();
   report.keys_suspended = g_decision.suspended();
   report.preview_on = g_preview;
   report.heap_free = ESP.getFreeHeap();
@@ -157,6 +162,15 @@ void handle(const DeviceCommand& command) {
       g_hand.h = command.crop_h;
       g_hand_ms = millis();
       break;
+    case DeviceCommand::kLandmarks:
+      g_hand.present = command.flag != 0;
+      g_hand_ms = millis();
+      g_landmarks_ready = command.flag != 0 && command.landmark_count == 42;
+      if (g_landmarks_ready) {
+        memcpy(g_landmark_features, command.landmarks, sizeof(g_landmark_features));
+        g_landmark_ms = millis();
+      }
+      break;
     case DeviceCommand::kNone:
       break;
   }
@@ -214,12 +228,13 @@ void runVision() {
 
   const uint32_t infer_started = micros();
   Classification result = {};
-  if (hand_now) {
-    result = g_classifier.classify(g_prepared.model);
+  const bool landmark_now = g_landmarks_ready && (uint32_t)(millis() - g_landmark_ms) < 700;
+  if (landmark_now) {
+    result = g_landmarks.classify(g_landmark_features);
   } else {
     result.id = kGestureNone;
     result.confidence = 1.0f;
-    result.model_ready = g_classifier.ready();
+    result.model_ready = g_landmarks.ready();
     result.scores[kGestureNone] = 1.0f;
   }
   const uint32_t inference_us = micros() - infer_started;
@@ -280,10 +295,13 @@ void setup() {
   }
 
   g_keyboard.begin();
-  const bool model_ok = g_classifier.begin();
+  g_classifier.begin();
+  const bool model_ok = g_landmarks.begin();
   g_decision.setModelReady(model_ok);
   if (!model_ok) {
-    g_telemetry.log("info", "Gesture model is not trained. Keys from gestures stay off until you train and reflash.");
+    g_telemetry.log("info", "Landmark gesture model is not trained. Keys stay off until you train and reflash.");
+  } else {
+    g_telemetry.log("info", "Landmark gesture model is ready on the board.");
   }
   g_telemetry.log("info", "Bluetooth keyboard is advertising as Touchless Keys.");
   publishStatus();

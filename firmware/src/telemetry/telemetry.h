@@ -16,7 +16,8 @@ struct DeviceCommand {
     kForget,
     kStatus,
     kSuspend,
-    kCrop
+    kCrop,
+    kLandmarks
   };
 
   Type type;
@@ -27,6 +28,8 @@ struct DeviceCommand {
   float crop_y;
   float crop_w;
   float crop_h;
+  float landmarks[42];
+  int landmark_count;
   int flag;
   int vflip;
   int hmirror;
@@ -82,6 +85,6 @@ class Telemetry {
   bool parse(const char* line, DeviceCommand* command);
   void print(const char* line);
 
-  char line_[240];
+  char line_[900];
   int line_len_;
 };

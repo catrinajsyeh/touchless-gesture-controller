@@ -1,0 +1,12 @@
+{
+  "accuracy": 0.992,
+  "labels": [
+    "POINT_UP",
+    "POINT_DOWN",
+    "THUMBS_UP",
+    "OPEN_PALM",
+    "NO_GESTURE"
+  ],
+  "input": 42,
+  "hidden": 24
+}

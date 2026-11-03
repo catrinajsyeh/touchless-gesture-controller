@@ -82,6 +82,18 @@ def classify_landmarks(hand):
     return "NO_GESTURE", 0.2
 
 
+def features_from_hand(hand):
+    xs = np.array([point.x for point in hand], dtype=np.float32)
+    ys = np.array([point.y for point in hand], dtype=np.float32)
+    xy = np.stack([xs, ys], axis=1)
+    wrist = xy[0]
+    rel = xy - wrist
+    scale = float(np.linalg.norm(rel, axis=1).max())
+    if scale < 1e-6:
+        scale = 1.0
+    return (rel / scale).reshape(-1).astype(np.float32)
+
+
 def _crop(image, hand):
     height, width = image.shape[:2]
     xs = [point.x * width for point in hand]
@@ -118,15 +130,16 @@ def analyze_jpeg(jpeg_bytes):
     present = False
     crop = None
     box = None
+    features = None
     if result.hand_landmarks:
         present = True
         hand = result.hand_landmarks[0]
         label, confidence = classify_landmarks(hand)
+        features = features_from_hand(hand)
         crop, span = _crop(image, hand)
         if span < 0.18:
             label, confidence = "NO_GESTURE", 0.2
         _draw(image, hand)
-        height, width = image.shape[:2]
         xs = [point.x for point in hand]
         ys = [point.y for point in hand]
         pad_x = max(0.04, (max(xs) - min(xs)) * 0.35)
@@ -148,6 +161,7 @@ def analyze_jpeg(jpeg_bytes):
         "jpeg": encoded.tobytes() if ok else jpeg_bytes,
         "crop": crop,
         "box": box,
+        "features": None if features is None else [round(float(v), 4) for v in features],
     }
 
 

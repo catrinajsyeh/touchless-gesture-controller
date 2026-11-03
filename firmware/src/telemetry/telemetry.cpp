@@ -48,6 +48,30 @@ bool extractNumber(const char* json, const char* key, float* out) {
   return true;
 }
 
+bool extractFloatArray(const char* json, const char* key, float* out, int max_count, int* got) {
+  char pattern[32];
+  snprintf(pattern, sizeof(pattern), "\"%s\"", key);
+  const char* found = strstr(json, pattern);
+  if (found == nullptr) return false;
+  const char* colon = strchr(found + strlen(pattern), ':');
+  if (colon == nullptr) return false;
+  const char* bracket = strchr(colon, '[');
+  if (bracket == nullptr) return false;
+  ++bracket;
+  int count = 0;
+  while (*bracket && *bracket != ']' && count < max_count) {
+    while (*bracket == ' ' || *bracket == ',') ++bracket;
+    if (*bracket == ']') break;
+    char* end = nullptr;
+    const float value = strtof(bracket, &end);
+    if (end == bracket) return false;
+    out[count++] = value;
+    bracket = end;
+  }
+  *got = count;
+  return count > 0;
+}
+
 }  // namespace
 
 void Telemetry::begin() { line_len_ = 0; }
@@ -244,6 +268,17 @@ bool Telemetry::parse(const char* line, DeviceCommand* command) {
     extractNumber(line, "w", &command->crop_w);
     extractNumber(line, "h", &command->crop_h);
     command->flag = hand >= 0.5f ? 1 : 0;
+  } else if (strcmp(cmd, "landmarks") == 0) {
+    command->type = DeviceCommand::kLandmarks;
+    float hand = 0;
+    extractNumber(line, "hand", &hand);
+    command->flag = hand >= 0.5f ? 1 : 0;
+    int got = 0;
+    if (!extractFloatArray(line, "f", command->landmarks, 42, &got)) {
+      command->landmark_count = 0;
+    } else {
+      command->landmark_count = got;
+    }
   } else {
     return false;
   }
